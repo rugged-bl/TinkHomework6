@@ -16,13 +16,16 @@ public class MainActivity extends AppCompatActivity {
         looperThread.setName("looper thread");
         looperThread.start();
 
-        //Both loopers for observeOn and subscribeOn must be set
+        // TODO(для яркости) поток исполнения 'логируется' чуть ниже с помощью Thread.currentThread().getName()
+        // Если текущий поток исполнения совпадает с потоком лупера,
+        // то выполняется просто в потоке, а не через хендлер
+
         //uncomment underlying code to check exception in callable handling
-        MyObservable.just(() -> {
-            System.out.println("callable executes on " + Thread.currentThread().getName());
+        MyObservable.from(() -> {
+            System.out.println("**************callable executes on " + Thread.currentThread().getName());
             /*if (looperThread != null)
                 throw new RuntimeException("exception in callable ('if' because of unreachable statement)");*/
-            return "observed on ";
+            return "**************observed on ";
         })
                 .observeOn(Looper.getMainLooper())
                 .subscribeOn(looperThread.getLooper())

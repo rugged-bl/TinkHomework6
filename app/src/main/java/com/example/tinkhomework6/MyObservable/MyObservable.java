@@ -4,27 +4,37 @@ import android.os.Handler;
 import android.os.Looper;
 
 import java.util.Objects;
-import java.util.concurrent.Callable;
 
 public abstract class MyObservable<T> {
-    Handler handlerSubscribeOn;
+    private Handler handlerSubscribeOn;
+    private Handler handlerObserveOn;
+    MyLambdaObserver<? super T> observer;
 
-    Handler handlerObserveOn;
-    private MyLambdaObserver<? super T> observer;
+    protected abstract void subscribeActual();
 
-    protected abstract void subscribeActual(MyObserver<? super T> observer);
+    void onObserve() {
+        if (handlerObserveOn == null || handlerObserveOn.getLooper().getThread() == Thread.currentThread())
+            observer.acceptValue();
+        else
+            handlerObserveOn.sendEmptyMessage(0);
+    }
+
+    void onSubscribe(Runnable runnable) {
+        if (handlerSubscribeOn == null || handlerSubscribeOn.getLooper().getThread() == Thread.currentThread()) {
+            runnable.run();
+            onObserve();
+        } else
+            handlerSubscribeOn.sendMessage(handlerSubscribeOn.obtainMessage(0, runnable));
+    }
 
     public final MyObservable<T> subscribeOn(Looper looper) {
         Objects.requireNonNull(looper, "scheduler is null");
 
         handlerSubscribeOn = new Handler(looper, msg -> {
-            try {
-                //noinspection unchecked
-                observer.onNext(((Callable<T>) (msg.obj)).call());
-            } catch (Throwable t) {
-                observer.onError(t);
-            }
-            handlerObserveOn.sendEmptyMessage(0);
+            //noinspection unchecked
+            System.out.println("**************subscribeOn handler involved");
+            ((Runnable) msg.obj).run();
+            onObserve();
             return true;
         });
 
@@ -35,6 +45,7 @@ public abstract class MyObservable<T> {
         Objects.requireNonNull(looper, "scheduler is null");
 
         handlerObserveOn = new Handler(looper, msg -> {
+            System.out.println("**************observeOn handler involved");
             observer.acceptValue();
             return true;
         });
@@ -52,10 +63,11 @@ public abstract class MyObservable<T> {
 
         observer = new MyLambdaObserver<>(onSuccess, onError);
 
-        subscribeActual(observer);
+        subscribeActual();
     }
 
-    public static <T> MyObservable<T> just(Callable<T> item) {
-        return MyObservableJust.just(item);
+    public static <T> MyObservable<T> from(MyCallable<T> item) {
+        Objects.requireNonNull(item, "The item is null");
+        return new MyObservableFromCallable<>(item);
     }
 }
